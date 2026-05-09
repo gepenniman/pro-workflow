@@ -1,8 +1,8 @@
 {
   "name": "pro-workflow",
   "displayName": "Pro Workflow",
-  "version": "3.1.0",
-  "description": "Battle-tested AI coding workflows from power users. Self-correcting memory, parallel worktrees, wrap-up rituals, quality gates, and the 80/20 AI coding ratio. Distilled from real production use.",
+  "version": "3.3.0",
+  "description": "Battle-tested AI coding workflows. Self-correcting memory + persistent FTS5-indexed wikis + auto-research loop + multi-LLM council on one SQLite store. Parallel worktrees, wrap-up rituals, quality gates.",
   "author": {
     "name": "Rohit Ghumare",
     "email": "ghumare64@gmail.com"
