@@ -56,30 +56,73 @@ Session 50: Correction rate near zero. Wiki has 200 cited claims.
 
 ## Install
 
+Pro Workflow is published in two places: the Claude Code plugin marketplace (native), and SkillKit (cross-agent translator). Other agents do not have first-class plugins yet &mdash; SkillKit translates the skill bundle into each agent's native skill format.
+
+### Claude Code (native)
+
 ```bash
 /plugin marketplace add rohitg00/pro-workflow
 /plugin install pro-workflow@pro-workflow
 ```
 
-<details>
-<summary>Other install methods</summary>
+### Cursor, Codex, Copilot CLI, Droid, Gemini CLI, OpenCode, and 26 more (via SkillKit)
+
+SkillKit translates the 34 skills + 22 commands into each agent's native skill format and drops them in the right config directory.
 
 ```bash
-# Cursor
-/add-plugin pro-workflow
+npx skillkit install rohitg00/pro-workflow --agent <name> --force
+```
 
-# Any agent via SkillKit
-npx skillkit install pro-workflow
+Notes:
 
-# Manual
+- Use `rohitg00/pro-workflow` (the GitHub form), not the bare name &mdash; `skillkit install` resolves providers from `owner/repo`, not marketplace slugs.
+- `--force` is currently required: SkillKit's security scanner has open false positives on standard Node patterns (`child_process` imports, `Bearer ${env}` template literals) that block legit skills like `survey-generator` and `safe-mode`. Tracked at [`skillkit#129`](https://github.com/rohitg00/skillkit/issues/129).
+
+Supported `<name>` values: `cursor`, `codex`, `gemini-cli`, `opencode`, `github-copilot`, `droid` (factory), `antigravity`, `amp`, `clawdbot`, `cline`, `codebuddy`, `commandcode`, `continue`, `crush`, `goose`, `kilo`, `kiro-cli`, `mcpjam`, `mux`, `neovate`, `openhands`, `pi`, `qoder`, `qwen`, `roo`, `trae`, `universal`, `vercel`, `windsurf`, `zencoder`. Pass `--agent universal` for a portable bundle.
+
+After install, run `skillkit sync` to register the skills with the target agent's config.
+
+<details>
+<summary>Manual install (any agent, any OS)</summary>
+
+If neither path works for your setup, clone and copy the bundle directly. Adjust the destination to your agent's skill directory (e.g. `~/.cursor/rules/`, `~/.gemini/extensions/`, etc.).
+
+```bash
 git clone https://github.com/rohitg00/pro-workflow.git /tmp/pw
-cp -r /tmp/pw/templates/split-claude-md/* ./.claude/
+cd /tmp/pw && npm install && npm run build
 
-# Build SQLite-backed components
-cd ~/.claude/plugins/*/pro-workflow && npm install && npm run build
+cp -r /tmp/pw/templates/split-claude-md/* ./.claude/
+cp -r /tmp/pw/skills    ~/.claude/skills/
+cp -r /tmp/pw/commands  ~/.claude/commands/
+cp    /tmp/pw/hooks/hooks.json ~/.claude/hooks.json
 ```
 
 </details>
+
+### First-run smoke test
+
+```bash
+/doctor              # confirms SQLite store, hooks, skills load
+/wrap-up             # runs the end-of-session ritual (no-op on fresh install)
+```
+
+If `/doctor` reports `KB: missing`, run `cd ~/.claude/plugins/*/pro-workflow && npm install && npm run build` &mdash; the SQLite components need a build step a handful of marketplaces skip.
+
+---
+
+## What to type first
+
+After install you have **34 auto-trigger skills** and **22 slash commands**. You don't need to memorize them; the agent picks the right skill from your prompt. The five commands below cover 80% of daily use:
+
+| When | Command | What it does |
+|---|---|---|
+| **Wrong correction repeats** | `/learn-rule` | Capture the correction as a rule. Loaded on every future `SessionStart`. |
+| **End of a coding session** | `/wrap-up` | Audit changes, persist learnings, write a handoff doc. |
+| **Researching a topic** | `/wiki init <slug>` | Spin up a persistent FTS5 wiki. Auto-injected when you mention the topic later. |
+| **Stuck on a hard bug** | `/develop` | Research &rarr; Plan &rarr; Implement phases with validation gates. |
+| **Before a PR** | `/smart-commit` | Quality gates, staged review, conventional commit message. |
+
+Full list: [`commands/`](./commands) &middot; [`skills/`](./skills) &middot; [`/list`](./commands/list.md) inside any session.
 
 ---
 
