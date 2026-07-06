@@ -59,13 +59,19 @@ function cleanup(input, raw) {
   if (!repo && entry && typeof entry.repo === 'string' && fs.existsSync(entry.repo)) repo = entry.repo;
   if (!repo && input.cwd && fs.existsSync(input.cwd)) repo = input.cwd;
 
-  if (ours) {
+  // Only touch git state when we've confirmed ownership: either the path
+  // resolves under our own baseDir, or the ledger has a matching row for it.
+  // `repo` alone isn't enough to gate on — it can resolve via input.cwd (the
+  // session's cwd), which may be the user's main repo, not a worktree we made.
+  const owned = ours || !!entry;
+
+  if (owned) {
     if (repo) tryGit(['worktree', 'remove', '--force', resolved], repo);
     try {
       if (fs.existsSync(resolved)) fs.rmSync(resolved, { recursive: true, force: true });
     } catch (e) { /* ignore */ }
   }
-  if (repo) {
+  if (owned && repo) {
     tryGit(['worktree', 'prune'], repo);
     // agents/* is the namespace worktree-create.js owns; never touch others.
     if (branch && /^agents\//.test(branch)) tryGit(['branch', '-D', branch], repo);
@@ -87,6 +93,8 @@ process.stdin.on('end', () => {
   let input = {};
   try { input = JSON.parse(data); } catch (e) { input = {}; }
   try { cleanup(input, data); } catch (e) { /* cleanup is best-effort, never block */ }
+  // No process.exit() here: stdout to a pipe is written asynchronously by
+  // Node, and exit() doesn't wait for the flush. Letting the event loop drain
+  // naturally (no open handles remain) guarantees the payload isn't truncated.
   console.log(data || '{}');
-  process.exit(0);
 });

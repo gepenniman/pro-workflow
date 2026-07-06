@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 process.stdin.setEncoding('utf8');
@@ -15,22 +16,47 @@ process.stdin.on('end', () => {
   // whenever the session is inside a repo.
   const baseDir = path.join(os.tmpdir(), 'pro-workflow', 'worktrees');
 
+  // Git ref names can't start with '.', contain '..', or end in '.lock'. Strip
+  // disallowed characters first, then collapse anything left that would still
+  // fail `git check-ref-format`.
+  const sanitizeRefComponent = (rawName) => {
+    let name = String(rawName || 'worktree').replace(/[^A-Za-z0-9._-]/g, '-');
+    name = name.replace(/\.+/g, '.').replace(/^\.+/, '').replace(/\.lock$/, '-lock');
+    return name || 'worktree';
+  };
+
   const createWorktree = (rawName, cwdHint) => {
     const ts = Date.now();
-    const name = String(rawName || 'worktree').replace(/[^A-Za-z0-9._-]/g, '-');
-    const target = path.join(baseDir, `${name}-${ts}`);
-    const branch = `agents/${name}-${ts}`;
+    const unique = `${ts}-${crypto.randomBytes(3).toString('hex')}`;
+    const name = sanitizeRefComponent(rawName);
+    const target = path.join(baseDir, `${name}-${unique}`);
+    const branch = `agents/${name}-${unique}`;
     const cwd = cwdHint && fs.existsSync(cwdHint) ? cwdHint : process.cwd();
+
+    let inRepo = false;
     try {
       execFileSync('git', ['-C', cwd, 'rev-parse', '--git-dir'], { stdio: 'ignore' });
-      fs.mkdirSync(baseDir, { recursive: true });
-      execFileSync('git', ['-C', cwd, 'worktree', 'add', '-b', branch, target], { stdio: 'ignore' });
-      return { target, branch, repo: cwd };
+      inRepo = true;
     } catch (err) {
-      // Not a git repo, or git failed: fall back to a plain directory.
-      fs.mkdirSync(target, { recursive: true });
-      return { target, branch: null, repo: null };
+      // Genuinely not a git repo: a plain directory is the correct outcome.
     }
+
+    if (inRepo) {
+      try {
+        fs.mkdirSync(baseDir, { recursive: true });
+        execFileSync('git', ['-C', cwd, 'worktree', 'add', '-b', branch, target], { stdio: 'pipe' });
+        return { target, branch, repo: cwd };
+      } catch (err) {
+        // We ARE in a repo but `worktree add` still failed (ref collision, disk,
+        // git version, etc.). Never block the spawn over this, but make the
+        // failure visible instead of silently handing back an empty directory
+        // that looks identical to the "not a repo" case.
+        console.error(`[ProWorkflow] git worktree add failed, falling back to a plain directory: ${(err.stderr || err.message || err).toString().trim()}`);
+      }
+    }
+
+    fs.mkdirSync(target, { recursive: true });
+    return { target, branch: null, repo: null };
   };
 
   let input = {};
